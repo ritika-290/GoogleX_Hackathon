@@ -1,321 +1,443 @@
-"""Flask Backend for Startup India Advisor
+"""Flask Backend — Industrial Park Finder
 
-API Endpoints:
-- GET  /              → Serves the main HTML interface
-- POST /api/analyze   → Full ADK agent chain analysis
-- POST /api/rank-states → Fast direct API for state rankings
-- POST /api/parks     → Search industrial parks
-- POST /api/schemes   → Match government schemes
-- POST /api/subsidy   → Estimate subsidy value
-- POST /api/chat      → Direct Gemini chat for Q&A
+Pipeline:
+  POST /api/find-parks    → Step 2: Manual query (iilb_parks.json)
+  POST /api/run-pipeline  → Steps 3-6: Scrape → Rank → Schemes (SSE stream)
+  GET  /api/results/<id>  → Fetch final top-10 results from MongoDB
+  POST /api/chat          → Direct Gemini Q&A
+  GET  /api/health        → Health check
+
+Legacy (kept for backward compat):
+  POST /api/rank-states, /api/parks, /api/schemes, /api/subsidy, /api/analyze
 """
 
 import json
 import os
-from flask import Flask, render_template, request, jsonify
+import uuid
+from datetime import datetime, timezone
+
+from flask import Flask, Response, jsonify, render_template, request, stream_with_context
+from flask_cors import CORS
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)
 
-# ============================================================
-# Import tools directly for fast API paths
-# ============================================================
+# ── Tools ──────────────────────────────────────────────────────────────────
 from tools.location_tools import (
+    query_parks,
     search_industrial_parks,
     get_state_infrastructure_score,
     geocode_location,
-    get_nearby_logistics
+    get_nearby_logistics,
 )
-from tools.scheme_tools import (
-    match_government_schemes,
-    estimate_subsidy_value
-)
-from tools.scoring_tools import (
-    calculate_location_score,
-    rank_states_for_business
+from tools.scheme_tools import match_government_schemes, estimate_subsidy_value
+from tools.scoring_tools import calculate_location_score, rank_states_for_business
+
+# ── Agents ─────────────────────────────────────────────────────────────────
+from agents.scraper_agent import scrape_parks_batch
+from agents.ranking_agent import rank_parks, deep_research_top10
+from agents.scheme_agent  import process_schemes_for_parks
+
+# ── DB ─────────────────────────────────────────────────────────────────────
+from db.mongo_client import (
+    upsert_scraped_park,
+    store_ranked_parks,
+    get_parks_for_session,
+    create_session,
+    update_session_status,
+    get_session,
+    is_db_available,
 )
 
-# ============================================================
-# ADK Runner (for full agent chain)
-# ============================================================
-try:
-    from google.adk.runners import Runner
-    from google.adk.sessions import InMemorySessionService
-    from agent import startup_india_advisor
+# ── In-memory results cache (fallback when MongoDB unavailable) ─────────────
+_RESULTS_CACHE: dict = {}
 
-    session_service = InMemorySessionService()
-    runner = Runner(
-        agent=startup_india_advisor,
-        app_name="startup_india_advisor",
-        session_service=session_service
-    )
-    ADK_AVAILABLE = True
-except Exception as e:
-    print(f"ADK not available: {e}")
-    ADK_AVAILABLE = False
+MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
 
-# ============================================================
-# ROUTES
-# ============================================================
+# ═══════════════════════════════════════════════════════════════════════════
+# MAIN UI
+# ═══════════════════════════════════════════════════════════════════════════
 
 @app.route('/')
 def index():
-    """Serve the main web interface."""
-    return render_template(
-        'index.html',
-        maps_api_key=os.getenv('GOOGLE_MAPS_API_KEY', '')
+    return render_template('index.html', maps_api_key=MAPS_API_KEY)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STEP 2 — Manual Query
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/find-parks', methods=['POST'])
+def find_parks():
+    """Step 2: Filter iilb_parks.json by sector + land requirement.
+    Returns matched parks (up to 50) for the scraping agent.
+    """
+    data = request.json or {}
+
+    try:
+        result = query_parks(
+            sector              = data.get('sector', ''),
+            land_required_acres = float(data.get('land_required_acres') or 0),
+            state               = data.get('preferred_state', ''),
+            logistics_required  = bool(data.get('logistics_required', False)),
+            labor_required      = bool(data.get('labor_required', False)),
+            water_required      = bool(data.get('water_required', False)),
+            plug_and_play       = bool(data.get('plug_and_play', False)),
+            max_results         = int(data.get('max_results', 50)),
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# STEPS 3-6 — Full Pipeline (Server-Sent Events)
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/run-pipeline', methods=['POST'])
+def run_pipeline():
+    """
+    Steps 3→4→5→6 via SSE stream.
+
+    Client receives:
+        data: {"step": 3, "msg": "Scraping park 2/15: Sanand GIDC...", "pct": 20}
+        data: {"step": 4, "msg": "Saving to database...", "pct": 60}
+        data: {"step": 5, "msg": "Ranking parks...", "pct": 70}
+        data: {"step": 6, "msg": "Fetching schemes for Sanand GIDC...", "pct": 90}
+        data: {"step": 7, "msg": "Done", "pct": 100, "session_id": "...", "results": [...]}
+    """
+    data          = request.json or {}
+    matched_parks = data.get('parks', [])
+    requirements  = data.get('requirements', {})
+
+    if not matched_parks:
+        return jsonify({"status": "error", "message": "No parks to process"}), 400
+
+    session_id = str(uuid.uuid4())
+
+    # Limit to 20 parks max for scraping (performance)
+    matched_parks = matched_parks[:20]
+
+    def generate():
+        def _sse(payload: dict) -> str:
+            return f"data: {json.dumps(payload)}\n\n"
+
+        # ── Save session ───────────────────────────────────────────────────
+        try:
+            create_session(session_id, requirements)
+        except Exception:
+            pass  # DB might be unavailable
+
+        total_parks = len(matched_parks)
+
+        # ────────────────────────────────────────────────────────────────
+        # STEP 3 — Scraping
+        # ────────────────────────────────────────────────────────────────
+        yield _sse({"step": 3, "msg": f"Starting web scraping for {total_parks} parks...", "pct": 2})
+
+        scraped = []
+
+        def scrape_progress(i, total, name):
+            pct = int(2 + (i / total) * 40)
+            yield_val = _sse({"step": 3, "msg": f"Scraping {i+1}/{total}: {name}", "pct": pct})
+            # We can't yield from a callback, so we use a list
+            _progress_events.append(yield_val)
+
+        _progress_events = []
+
+        # Run scraping — emit progress events interleaved
+        for i, park in enumerate(matched_parks):
+            name = park.get("name", f"Park #{i+1}")
+            pct  = int(2 + (i / total_parks) * 40)
+            yield _sse({"step": 3, "msg": f"Scraping {i+1}/{total_parks}: {name}", "pct": pct})
+
+            try:
+                from agents.scraper_agent import scrape_park
+                enriched = scrape_park(park, requirements.get('sector', ''))
+            except Exception as e:
+                enriched = {**park, "_scrape_error": str(e)}
+
+            scraped.append(enriched)
+
+        # ────────────────────────────────────────────────────────────────
+        # STEP 4 — Store to MongoDB
+        # ────────────────────────────────────────────────────────────────
+        yield _sse({"step": 4, "msg": f"Saving {len(scraped)} parks to database...", "pct": 45})
+
+        db_ok = is_db_available()
+        if db_ok:
+            for park in scraped:
+                try:
+                    upsert_scraped_park(park)
+                except Exception:
+                    pass
+            update_session_status(session_id, "scraped", "scraping")
+        else:
+            _RESULTS_CACHE[f"{session_id}_scraped"] = scraped
+
+        yield _sse({"step": 4, "msg": "Database storage complete.", "pct": 50})
+
+        # ────────────────────────────────────────────────────────────────
+        # STEP 5a — Ranking
+        # ────────────────────────────────────────────────────────────────
+        yield _sse({"step": 5, "msg": "Scoring and ranking all parks...", "pct": 52})
+        ranked = rank_parks(scraped, requirements)
+        top10  = ranked[:10]
+        yield _sse({"step": 5, "msg": f"Top 10 selected. Starting deep research...", "pct": 55})
+
+        # ────────────────────────────────────────────────────────────────
+        # STEP 5b — Deep Research on Top 10
+        # ────────────────────────────────────────────────────────────────
+        for i, park in enumerate(top10):
+            name = park.get("name", f"Park #{i+1}")
+            pct  = int(55 + (i / 10) * 20)
+            yield _sse({"step": 5, "msg": f"Deep research {i+1}/10: {name}", "pct": pct})
+
+            try:
+                from agents.ranking_agent import _deep_research_park
+                research = _deep_research_park(park, requirements)
+                park["research"] = research
+            except Exception as e:
+                park["research"] = {"_error": str(e)}
+
+        yield _sse({"step": 5, "msg": "Research complete. Fetching government schemes...", "pct": 76})
+
+        # ────────────────────────────────────────────────────────────────
+        # STEP 6 — Scheme Agent
+        # ────────────────────────────────────────────────────────────────
+        for i, park in enumerate(top10):
+            name = park.get("name", f"Park #{i+1}")
+            pct  = int(76 + (i / 10) * 20)
+            yield _sse({"step": 6, "msg": f"Fetching schemes for {name}", "pct": pct})
+
+            try:
+                from agents.scheme_agent import (
+                    _match_central_schemes,
+                    _match_state_schemes,
+                    _gemini_scheme_research,
+                )
+                sector     = requirements.get('sector', '')
+                investment = float(requirements.get('investment_inr') or 0)
+                is_msme    = bool(requirements.get('is_msme', False))
+                is_startup = bool(requirements.get('is_startup', False))
+                state      = park.get('state', '')
+
+                central = _match_central_schemes(sector, investment, is_msme, is_startup)
+                state_s = _match_state_schemes(state, sector)
+                park_inc= park.get('incentives') or []
+
+                gemini_schemes = _gemini_scheme_research(
+                    park.get('name', ''), state, sector, investment,
+                    central + state_s, park_inc
+                )
+                park["schemes"] = {
+                    "central_schemes":   central,
+                    "state_schemes":     state_s,
+                    "park_incentives":   park_inc,
+                    "gemini_analysis":   gemini_schemes,
+                    "total_subsidy_cr":  gemini_schemes.get("total_subsidy_estimate_cr", 0),
+                    "net_investment_cr": gemini_schemes.get("net_investment_cr", investment / 1e7),
+                    "subsidy_pct":       gemini_schemes.get("subsidy_percentage", 0),
+                    "key_insight":       gemini_schemes.get("key_insight", ""),
+                }
+            except Exception as e:
+                park["schemes"] = {"_error": str(e)}
+
+        # ────────────────────────────────────────────────────────────────
+        # Save final results
+        # ────────────────────────────────────────────────────────────────
+        if db_ok:
+            try:
+                store_ranked_parks(session_id, top10)
+                update_session_status(session_id, "complete", "ranking")
+            except Exception:
+                pass
+
+        _RESULTS_CACHE[session_id] = top10
+
+        yield _sse({
+            "step":       7,
+            "msg":        "Analysis complete!",
+            "pct":        100,
+            "session_id": session_id,
+            "results":    top10,
+        })
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control':  'no-cache',
+            'X-Accel-Buffering': 'no',
+        }
     )
 
 
-@app.route('/api/analyze', methods=['POST'])
-def analyze():
-    """Full AI analysis using ADK agent chain.
+# ═══════════════════════════════════════════════════════════════════════════
+# GET RESULTS
+# ═══════════════════════════════════════════════════════════════════════════
 
-    This is the SLOW path (30-60 seconds) but provides the richest output.
-    Uses the SequentialAgent: feasibility → location → schemes.
-    """
-    if not ADK_AVAILABLE:
+@app.route('/api/results/<session_id>', methods=['GET'])
+def get_results(session_id):
+    """Fetch cached top-10 results for a completed session."""
+    # Try memory cache first
+    if session_id in _RESULTS_CACHE:
         return jsonify({
-            "status": "error",
-            "message": "ADK agent not available. Use /api/rank-states for direct analysis."
-        }), 503
-
-    data = request.json or {}
-
-    # Build natural language query for the agent
-    query = f"""
-I want to start a {data.get('sector', 'manufacturing')} business in India.
-Investment size: Rs {data.get('investment', 0):,}.
-Expected employment: {data.get('employment', 'unknown')} people.
-Business type: {data.get('business_type', 'manufacturing')}.
-
-My priorities (1-10 scale):
-- Power reliability: {data.get('priority_power', 5)}
-- Logistics/connectivity: {data.get('priority_logistics', 5)}
-- Labor availability: {data.get('priority_labor', 5)}
-- Low land cost: {data.get('priority_cost', 5)}
-- Government incentives: {data.get('priority_schemes', 5)}
-
-Please:
-1. Rank the top 5 states for this business
-2. Deep-dive into the #1 recommended state with specific industrial parks
-3. Find all applicable central and state government schemes
-4. Estimate total subsidy value I can expect
-5. Provide a final go/no-go recommendation with confidence level
-"""
-
-    try:
-        # Create session and run agent
-        session = session_service.create_session(
-            app_name="startup_india_advisor",
-            user_id="hackathon_user"
-        )
-
-        events = runner.run(
-            user_id="hackathon_user",
-            session_id=session.id,
-            new_message=query
-        )
-
-        # Extract final response
-        final_response = ""
-        for event in events:
-            if event.is_final_response() and event.content.parts:
-                final_response = event.content.parts[0].text
-
-        return jsonify({
-            "status": "success",
-            "analysis": final_response,
-            "session_id": session.id,
-            "raw_input": data
+            "status":  "success",
+            "results": _RESULTS_CACHE[session_id],
         })
 
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": f"Agent execution failed: {str(e)}"
-        }), 500
+    # Try MongoDB
+    try:
+        parks = get_parks_for_session(session_id)
+        if parks:
+            return jsonify({"status": "success", "results": parks})
+    except Exception:
+        pass
 
+    return jsonify({"status": "error", "message": "Session not found"}), 404
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CHAT
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    """Direct Gemini Q&A for follow-up questions."""
+    data    = request.json or {}
+    message = data.get('message', '')
+    context = data.get('context', '')  # optional park/session context
+
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=GOOGLE_API_KEY)
+
+        system = """You are an expert Indian government scheme and industrial location consultant.
+Answer questions about Indian states, industrial parks, government schemes, subsidies, and business feasibility.
+Provide specific, actionable information with numbers where possible.
+If asked about a specific park, mention its state, sector, and any known incentives."""
+
+        prompt = f"{system}\n\n"
+        if context:
+            prompt += f"Context (current park being viewed): {context}\n\n"
+        prompt += f"User: {message}\n\nAssistant:"
+
+        model    = genai.GenerativeModel('gemini-2.0-flash', tools="google_search_retrieval")
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.GenerationConfig(temperature=0.3, max_output_tokens=1024)
+        )
+        return jsonify({"status": "success", "response": response.text})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# HEALTH CHECK
+# ═══════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/health')
+def health():
+    return jsonify({
+        "status":       "healthy",
+        "db_available": is_db_available(),
+        "version":      "2.0.0-pipeline",
+        "dataset":      "iilb_parks.json",
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# LEGACY ENDPOINTS (backward compat)
+# ═══════════════════════════════════════════════════════════════════════════
 
 @app.route('/api/rank-states', methods=['POST'])
 def rank_states():
-    """Fast direct API for state ranking.
-
-    This is the FAST path (< 1 second) using direct tool calls.
-    Returns ranked states with scores and breakdowns.
-    """
     data = request.json or {}
-
     try:
         result = rank_states_for_business(
-            sector=data.get('sector', 'manufacturing'),
-            investment_size_inr=float(data.get('investment', 0)),
-            priority_power=int(data.get('priority_power', 5)),
-            priority_logistics=int(data.get('priority_logistics', 5)),
-            priority_labor=int(data.get('priority_labor', 5)),
-            priority_cost=int(data.get('priority_cost', 5)),
-            priority_schemes=int(data.get('priority_schemes', 5))
+            sector               = data.get('sector', 'manufacturing'),
+            investment_size_inr  = float(data.get('investment', 0)),
+            priority_power       = int(data.get('priority_power', 5)),
+            priority_logistics   = int(data.get('priority_logistics', 5)),
+            priority_labor       = int(data.get('priority_labor', 5)),
+            priority_cost        = int(data.get('priority_cost', 5)),
+            priority_schemes     = int(data.get('priority_schemes', 5)),
         )
         return jsonify(result)
-
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": f"Ranking failed: {str(e)}"
-        }), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route('/api/parks', methods=['POST'])
 def parks():
-    """Search industrial parks by state and sector."""
     data = request.json or {}
-
     try:
         result = search_industrial_parks(
-            state=data.get('state', 'gujarat'),
-            sector=data.get('sector', ''),
-            min_area_acres=data.get('min_area'),
-            max_budget_inr=data.get('max_budget')
+            state          = data.get('state', 'gujarat'),
+            sector         = data.get('sector', ''),
+            min_area_acres = data.get('min_area'),
+            max_budget_inr = data.get('max_budget'),
         )
         return jsonify(result)
-
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": f"Park search failed: {str(e)}"
-        }), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route('/api/schemes', methods=['POST'])
 def schemes():
-    """Match government schemes for business profile."""
     data = request.json or {}
-
     try:
         result = match_government_schemes(
-            business_type=data.get('business_type', 'manufacturing'),
-            sector=data.get('sector', 'electronics'),
-            investment_size_inr=float(data.get('investment', 0)),
-            state=data.get('state', 'gujarat'),
-            employment_target=int(data.get('employment', 0)),
-            is_startup=bool(data.get('is_startup', False)),
-            is_msme=bool(data.get('is_msme', False))
+            business_type      = data.get('business_type', 'manufacturing'),
+            sector             = data.get('sector', 'electronics'),
+            investment_size_inr= float(data.get('investment', 0)),
+            state              = data.get('state', 'gujarat'),
+            employment_target  = int(data.get('employment', 0)),
+            is_startup         = bool(data.get('is_startup', False)),
+            is_msme            = bool(data.get('is_msme', False)),
         )
         return jsonify(result)
-
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": f"Scheme matching failed: {str(e)}"
-        }), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route('/api/subsidy', methods=['POST'])
 def subsidy():
-    """Estimate subsidy value for a specific scheme."""
     data = request.json or {}
-
     try:
         result = estimate_subsidy_value(
-            scheme_name=data.get('scheme_name', ''),
-            investment_size_inr=float(data.get('investment', 0)),
-            projected_revenue_inr=float(data.get('revenue', 0))
+            scheme_name          = data.get('scheme_name', ''),
+            investment_size_inr  = float(data.get('investment', 0)),
+            projected_revenue_inr= float(data.get('revenue', 0)),
         )
         return jsonify(result)
-
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": f"Subsidy estimation failed: {str(e)}"
-        }), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route('/api/infrastructure', methods=['POST'])
 def infrastructure():
-    """Get state infrastructure score."""
     data = request.json or {}
-
     try:
-        result = get_state_infrastructure_score(data.get('state', 'gujarat'))
-        return jsonify(result)
-
+        return jsonify(get_state_infrastructure_score(data.get('state', 'gujarat')))
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": f"Infrastructure query failed: {str(e)}"
-        }), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route('/api/geocode', methods=['POST'])
 def geocode():
-    """Geocode an address using Google Maps."""
     data = request.json or {}
-
     try:
-        result = geocode_location(data.get('address', ''))
-        return jsonify(result)
-
+        return jsonify(geocode_location(data.get('address', '')))
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": f"Geocoding failed: {str(e)}"
-        }), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
-@app.route('/api/chat', methods=['POST'])
-def chat():
-    """Direct Gemini chat for Q&A about locations/schemes.
-
-    Fallback when ADK is not available or for simple queries.
-    """
-    data = request.json or {}
-    message = data.get('message', '')
-
-    try:
-        import google.generativeai as genai
-        genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
-
-        model = genai.GenerativeModel('gemini-2.5-flash-preview')
-
-        system_prompt = """You are an expert Indian government scheme and industrial location consultant.
-        Answer questions about Indian states, industrial parks, government schemes, subsidies, and business feasibility.
-        Always provide specific, actionable information with numbers where possible.
-        If you don't know something, say so clearly."""
-
-        response = model.generate_content(
-            f"{system_prompt}\n\nUser: {message}\n\nAssistant:",
-            generation_config={
-                'temperature': 0.3,
-                'max_output_tokens': 1024
-            }
-        )
-
-        return jsonify({
-            "status": "success",
-            "response": response.text
-        })
-
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": f"Chat failed: {str(e)}"
-        }), 500
-
-
-# ============================================================
-# HEALTH CHECK
-# ============================================================
-@app.route('/api/health')
-def health():
-    return jsonify({
-        "status": "healthy",
-        "adk_available": ADK_AVAILABLE,
-        "version": "1.0.0-hackathon"
-    })
-
-
+# ═══════════════════════════════════════════════════════════════════════════
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)

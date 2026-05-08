@@ -5,1374 +5,768 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Startup India Advisor | AI-Powered Location Intelligence</title>
     <script src="https://maps.googleapis.com/maps/api/js?key={{ maps_api_key }}&libraries=places,marker,geometry"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #1a73e8;
-            --primary-dark: #1557b0;
-            --success: #137333;
-            --warning: #b06000;
-            --danger: #c5221f;
-            --bg: #f5f7fa;
-            --card: #ffffff;
-            --text: #202124;
-            --text-secondary: #5f6368;
-            --border: #dadce0;
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary: #f3f4f6;
+            --accent: #10b981;
+            --background: #f9fafb;
+            --card-bg: #ffffff;
+            --text-main: #111827;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --radius-md: 0.5rem;
+            --radius-lg: 1rem;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
 
-        body {
-            font-family: 'Google Sans', 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            height: 100vh;
-            overflow: hidden;
-        }
+        body { background-color: var(--background); color: var(--text-main); height: 100vh; display: flex; overflow: hidden; }
 
-        .app-container {
-            display: flex;
-            height: 100vh;
-        }
-
-        /* ===== SIDEBAR ===== */
+        /* Sidebar Container */
         .sidebar {
-            width: 420px;
-            background: var(--card);
+            width: 450px;
+            background: var(--card-bg);
             display: flex;
             flex-direction: column;
-            box-shadow: 2px 0 12px rgba(0,0,0,0.08);
+            box-shadow: var(--shadow-lg);
             z-index: 10;
-        }
-
-        .sidebar-header {
-            padding: 20px 24px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .sidebar-header h1 {
-            font-size: 22px;
-            font-weight: 700;
-            color: var(--primary);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .sidebar-header .subtitle {
-            font-size: 13px;
-            color: var(--text-secondary);
-            margin-top: 4px;
-        }
-
-        .sidebar-body {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px 24px;
-        }
-
-        .form-section {
-            margin-bottom: 20px;
-        }
-
-        .form-section h3 {
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--text-secondary);
-            margin-bottom: 12px;
-        }
-
-        .form-group {
-            margin-bottom: 14px;
-        }
-
-        .form-group label {
-            display: block;
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text);
-            margin-bottom: 6px;
-        }
-
-        .form-group input,
-        .form-group select {
-            width: 100%;
-            padding: 10px 14px;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            font-size: 14px;
-            transition: border-color 0.2s;
-            background: var(--card);
-        }
-
-        .form-group input:focus,
-        .form-group select:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(26,115,232,0.1);
-        }
-
-        .priority-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-
-        .priority-item {
-            background: var(--bg);
-            padding: 12px;
-            border-radius: 8px;
-            text-align: center;
-        }
-
-        .priority-item label {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            margin-bottom: 8px;
-        }
-
-        .priority-item input {
-            width: 60px;
-            text-align: center;
-            font-size: 16px;
-            font-weight: 700;
-            padding: 6px;
-        }
-
-        .btn-primary {
-            width: 100%;
-            padding: 14px;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 15px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .btn-primary:hover {
-            background: var(--primary-dark);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(26,115,232,0.3);
-        }
-
-        .btn-primary:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .btn-secondary {
-            width: 100%;
-            padding: 10px;
-            background: var(--bg);
-            color: var(--primary);
-            border: 1px solid var(--primary);
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            margin-top: 8px;
-        }
-
-        /* ===== RESULTS ===== */
-        .results-panel {
-            display: none;
-            margin-top: 20px;
-        }
-
-        .results-panel.active {
-            display: block;
-        }
-
-        .loading-state {
-            text-align: center;
-            padding: 40px 20px;
-        }
-
-        .spinner {
-            width: 48px;
-            height: 48px;
-            border: 4px solid #e8eaed;
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 16px;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .loading-state p {
-            color: var(--text-secondary);
-            font-size: 14px;
-        }
-
-        .result-card {
-            background: var(--bg);
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 12px;
-            border: 1px solid var(--border);
-        }
-
-        .result-card h3 {
-            font-size: 16px;
-            color: var(--primary);
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .score-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 700;
-        }
-
-        .score-high { background: #e6f4ea; color: var(--success); }
-        .score-mid { background: #fef3e8; color: var(--warning); }
-        .score-low { background: #fce8e8; color: var(--danger); }
-
-        .metric-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 6px 0;
-            font-size: 13px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .metric-row:last-child { border-bottom: none; }
-
-        .metric-label {
-            color: var(--text-secondary);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .metric-value {
-            font-weight: 700;
-            color: var(--text);
-        }
-
-        .scheme-list {
-            margin-top: 12px;
-        }
-
-        .scheme-item {
-            background: var(--card);
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            border-left: 3px solid var(--primary);
-        }
-
-        .scheme-item strong {
-            color: var(--primary);
-            font-size: 13px;
-        }
-
-        .scheme-item .benefit {
-            font-size: 12px;
-            color: var(--success);
-            font-weight: 600;
-            margin-top: 4px;
-        }
-
-        .scheme-item .timeline {
-            font-size: 11px;
-            color: var(--text-secondary);
-            margin-top: 2px;
-        }
-
-        .total-subsidy-box {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 12px;
-            text-align: center;
-            margin: 16px 0;
-        }
-
-        .total-subsidy-box .label {
-            font-size: 12px;
-            opacity: 0.9;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .total-subsidy-box .value {
-            font-size: 28px;
-            font-weight: 700;
-            margin-top: 4px;
-        }
-
-        /* ===== MAP ===== */
-        .map-container {
-            flex: 1;
-            position: relative;
-            background: #e5e7eb;
-        }
-
-        #map {
-            width: 100%;
             height: 100%;
         }
 
-        .map-legend {
-            position: absolute;
-            bottom: 24px;
-            left: 24px;
-            background: var(--card);
-            padding: 16px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            z-index: 1000;
+        .sidebar-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(to right, #ffffff, #f8fafc);
         }
 
-        .map-legend h4 {
-            font-size: 13px;
-            margin-bottom: 10px;
-            color: var(--text);
-        }
-
-        .legend-item {
+        .sidebar-header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
             display: flex;
             align-items: center;
-            gap: 8px;
-            font-size: 12px;
-            color: var(--text-secondary);
-            margin-bottom: 6px;
+            gap: 0.5rem;
         }
 
-        .legend-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
+        .sidebar-header p {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
         }
 
-        .map-controls {
-            position: absolute;
-            top: 24px;
-            right: 24px;
-            background: var(--card);
-            padding: 12px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            z-index: 1000;
-        }
-
-        .map-controls button {
-            display: block;
-            width: 100%;
-            padding: 8px 12px;
-            margin-bottom: 6px;
-            border: none;
-            border-radius: 6px;
-            font-size: 12px;
-            cursor: pointer;
-            background: var(--bg);
-            color: var(--text);
-        }
-
-        .map-controls button:hover {
-            background: var(--primary);
-            color: white;
-        }
-
-        /* ===== CHAT PANEL ===== */
-        .chat-toggle {
-            position: absolute;
-            bottom: 24px;
-            right: 24px;
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            background: var(--primary);
-            color: white;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(26,115,232,0.4);
-            z-index: 1001;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .chat-panel {
-            position: absolute;
-            bottom: 90px;
-            right: 24px;
-            width: 360px;
-            height: 450px;
-            background: var(--card);
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-            z-index: 1001;
-            display: none;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .chat-panel.active {
-            display: flex;
-        }
-
-        .chat-header {
-            padding: 16px;
-            background: var(--primary);
-            color: white;
-            font-weight: 600;
-            font-size: 14px;
-        }
-
-        .chat-messages {
+        .sidebar-content {
             flex: 1;
             overflow-y: auto;
-            padding: 16px;
+            padding: 1.5rem;
+            position: relative;
         }
 
-        .chat-message {
-            margin-bottom: 12px;
-            max-width: 85%;
-        }
-
-        .chat-message.user {
-            margin-left: auto;
-            background: var(--primary);
-            color: white;
-            padding: 10px 14px;
-            border-radius: 16px 16px 4px 16px;
-            font-size: 13px;
-        }
-
-        .chat-message.bot {
-            background: var(--bg);
-            padding: 10px 14px;
-            border-radius: 16px 16px 16px 4px;
-            font-size: 13px;
-            color: var(--text);
-        }
-
-        .chat-input-area {
-            padding: 12px;
-            border-top: 1px solid var(--border);
-            display: flex;
-            gap: 8px;
-        }
-
-        .chat-input-area input {
-            flex: 1;
-            padding: 10px 14px;
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            font-size: 13px;
-        }
-
-        .chat-input-area button {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            background: var(--primary);
-            color: white;
-            border: none;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        /* ===== COMPARISON MODAL ===== */
-        .modal-overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 2000;
+        /* Wizard Form Styles */
+        .wizard-step {
             display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        .wizard-step.active { display: block; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+        
+        .step-indicator::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--border);
+            z-index: 1;
+            transform: translateY(-50%);
+        }
+
+        .step-dot {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            background: var(--card-bg);
+            border: 2px solid var(--border);
+            display: flex;
             align-items: center;
             justify-content: center;
+            font-weight: 600;
+            color: var(--text-muted);
+            z-index: 2;
+            transition: all 0.3s ease;
         }
 
-        .modal-overlay.active {
+        .step-dot.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2);
+        }
+        .step-dot.completed {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        .form-group { margin-bottom: 1.25rem; }
+        .form-group label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-main);
+        }
+        .form-group input[type="text"],
+        .form-group input[type="number"],
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            background-color: var(--background);
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            background-color: var(--card-bg);
+        }
+
+        .toggle-group {
             display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            margin-bottom: 0.75rem;
+            background: var(--background);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .toggle-group:hover { border-color: var(--primary); }
+        .toggle-group input[type="checkbox"] { width: 1.25rem; height: 1.25rem; accent-color: var(--primary); cursor: pointer; }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        .btn-primary { background: var(--primary); color: white; box-shadow: var(--shadow-sm); }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+        .btn-secondary { background: var(--secondary); color: var(--text-main); }
+        .btn-secondary:hover { background: #e5e7eb; }
+        .btn-block { width: 100%; }
+
+        .wizard-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 2rem;
+            gap: 1rem;
         }
 
-        .modal-content {
-            background: var(--card);
-            width: 800px;
-            max-width: 90vw;
-            max-height: 90vh;
-            border-radius: 16px;
+        /* Progress Tracker */
+        #progressContainer { display: none; text-align: center; padding: 2rem 0; }
+        .spinner {
+            width: 3rem;
+            height: 3rem;
+            border: 4px solid var(--secondary);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1.5rem;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .progress-bar-bg {
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
             overflow: hidden;
-            display: flex;
-            flex-direction: column;
+            margin: 1.5rem 0;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            transition: width 0.4s ease;
         }
 
-        .modal-header {
-            padding: 20px 24px;
-            border-bottom: 1px solid var(--border);
+        /* Results Panel */
+        #resultsPanel { display: none; }
+        .result-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.3s ease;
+            position: relative;
+            cursor: pointer;
+        }
+        .result-card:hover {
+            border-color: var(--primary);
+            box-shadow: var(--shadow-md);
+            transform: translateY(-2px);
+        }
+        .rank-badge {
+            position: absolute;
+            top: -12px;
+            left: -12px;
+            background: var(--primary);
+            color: white;
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            box-shadow: var(--shadow-sm);
+        }
+        .result-header h3 { font-size: 1.125rem; color: var(--primary-dark); margin-bottom: 0.25rem; }
+        .result-header p { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem; }
+        
+        .score-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.75rem;
+            background: #dcfce7;
+            color: #166534;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+            font-size: 0.8125rem;
+        }
+        .info-item { display: flex; flex-direction: column; }
+        .info-label { color: var(--text-muted); font-weight: 500; }
+        .info-value { color: var(--text-main); font-weight: 600; }
+
+        .ai-summary {
+            background: linear-gradient(to right bottom, #eff6ff, #f8fafc);
+            border: 1px solid #bfdbfe;
+            border-radius: var(--radius-md);
+            padding: 1rem;
+            margin-top: 1rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            color: #1e3a8a;
+        }
+        .ai-summary-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--primary);
+        }
+
+        .subsidy-box {
+            background: var(--accent);
+            color: white;
+            padding: 1rem;
+            border-radius: var(--radius-md);
+            margin-top: 1rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
+        .subsidy-box .amount { font-size: 1.25rem; font-weight: 700; }
+        .subsidy-box .label { font-size: 0.75rem; opacity: 0.9; }
 
-        .modal-header h2 {
-            font-size: 18px;
-        }
+        /* Map Container */
+        .map-container { flex: 1; position: relative; background: #e5e7eb; }
+        #map { width: 100%; height: 100%; }
 
-        .modal-header button {
-            background: none;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            color: var(--text-secondary);
-        }
+        /* Custom Map Info Window */
+        .gm-style .gm-style-iw-c { padding: 0 !important; border-radius: var(--radius-lg) !important; box-shadow: var(--shadow-lg) !important; }
+        .gm-style .gm-style-iw-d { overflow: hidden !important; }
+        .map-info-window { padding: 1rem; min-width: 250px; }
+        .map-info-window h4 { color: var(--primary); margin-bottom: 0.5rem; font-size: 1rem; }
+        .map-info-window p { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0.5rem; }
 
-        .modal-body {
-            flex: 1;
-            overflow-y: auto;
-            padding: 24px;
-        }
-
-        .comparison-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-
-        .comparison-table th,
-        .comparison-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .comparison-table th {
-            background: var(--bg);
-            font-weight: 600;
-            color: var(--text-secondary);
-            font-size: 11px;
-            text-transform: uppercase;
-        }
-
-        .comparison-table tr:hover {
-            background: var(--bg);
-        }
-
-        /* ===== PARK DETAIL CARD ===== */
-        .park-detail {
-            background: var(--card);
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 12px;
-            border: 2px solid var(--primary);
-        }
-
-        .park-detail h4 {
-            color: var(--primary);
-            font-size: 15px;
-            margin-bottom: 8px;
-        }
-
-        .park-detail .park-meta {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            font-size: 12px;
-            margin-top: 8px;
-        }
-
-        .park-detail .park-meta span {
-            color: var(--text-secondary);
-        }
-
-        .park-detail .park-meta strong {
-            color: var(--text);
-        }
-
-        /* ===== AI INSIGHT BOX ===== */
-        .ai-insight {
-            background: linear-gradient(135deg, #e8f0fe 0%, #d2e3fc 100%);
-            border: 1px solid var(--primary);
-            border-radius: 12px;
-            padding: 16px;
-            margin-top: 16px;
-        }
-
-        .ai-insight h4 {
-            color: var(--primary);
-            font-size: 14px;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .ai-insight pre {
-            font-size: 12px;
-            line-height: 1.6;
-            color: var(--text);
-            white-space: pre-wrap;
-            font-family: 'Google Sans', sans-serif;
-        }
-
-        /* ===== SCROLLBAR ===== */
-        ::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #ccc;
-            border-radius: 3px;
-        }
-
-        /* ===== RESPONSIVE ===== */
-        @media (max-width: 768px) {
-            .sidebar {
-                width: 100%;
-                position: absolute;
-                z-index: 20;
-                transform: translateX(-100%);
-                transition: transform 0.3s;
-            }
-
-            .sidebar.open {
-                transform: translateX(0);
-            }
-
-            .map-container {
-                width: 100%;
-            }
-        }
     </style>
 </head>
 <body>
-    <div class="app-container">
-        <!-- SIDEBAR -->
-        <div class="sidebar">
-            <div class="sidebar-header">
-                <h1>🚀 Startup India Advisor</h1>
-                <p class="subtitle">AI-powered location intelligence & government scheme matching</p>
-            </div>
 
-            <div class="sidebar-body">
-                <form id="advisorForm">
-                    <div class="form-section">
-                        <h3>Business Profile</h3>
-
-                        <div class="form-group">
-                            <label>Business Sector</label>
-                            <select id="sector" required>
-                                <option value="">Select sector...</option>
-                                <option value="electronics">Electronics Manufacturing</option>
-                                <option value="textile">Textile & Apparel</option>
-                                <option value="automobile">Automobile & Auto Components</option>
-                                <option value="pharma">Pharmaceuticals & Biotech</option>
-                                <option value="food_processing">Food Processing</option>
-                                <option value="IT">IT & Software Services</option>
-                                <option value="renewable_energy">Renewable Energy</option>
-                                <option value="logistics">Logistics & Warehousing</option>
-                                <option value="aerospace">Aerospace & Defence</option>
-                                <option value="semiconductor">Semiconductor</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Investment Size (₹)</label>
-                            <input type="number" id="investment" placeholder="e.g., 50000000" required>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Expected Employment</label>
-                            <input type="number" id="employment" placeholder="e.g., 100">
-                        </div>
-
-                        <div class="form-group">
-                            <label>Business Type</label>
-                            <select id="business_type">
-                                <option value="manufacturing">Manufacturing</option>
-                                <option value="service">Service</option>
-                                <option value="trading">Trading</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="is_startup"> DPIIT-Recognized Startup
-                            </label>
-                        </div>
-
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="is_msme"> MSME Registered
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="form-section">
-                        <h3>Priorities (1-10)</h3>
-                        <div class="priority-grid">
-                            <div class="priority-item">
-                                <label>⚡ Power</label>
-                                <input type="number" id="priority_power" value="5" min="1" max="10">
-                            </div>
-                            <div class="priority-item">
-                                <label>🚛 Logistics</label>
-                                <input type="number" id="priority_logistics" value="5" min="1" max="10">
-                            </div>
-                            <div class="priority-item">
-                                <label>👷 Labor</label>
-                                <input type="number" id="priority_labor" value="5" min="1" max="10">
-                            </div>
-                            <div class="priority-item">
-                                <label>💰 Low Cost</label>
-                                <input type="number" id="priority_cost" value="5" min="1" max="10">
-                            </div>
-                            <div class="priority-item">
-                                <label>🏛️ Schemes</label>
-                                <input type="number" id="priority_schemes" value="5" min="1" max="10">
-                            </div>
-                        </div>
-                    </div>
-
-                    <button type="submit" class="btn-primary" id="analyzeBtn">
-                        🔍 Analyze Best Locations
-                    </button>
-
-                    <button type="button" class="btn-secondary" id="compareBtn" style="display:none;">
-                        📊 Compare Top States
-                    </button>
-                </form>
-
-                <div class="results-panel" id="resultsPanel">
-                    <div class="loading-state" id="loadingState">
-                        <div class="spinner"></div>
-                        <p>AI is analyzing 36 states, 700+ districts,<br>and 4,000+ industrial parks...</p>
-                        <p style="font-size:11px;margin-top:8px;">Ranking by your priorities • Matching schemes • Estimating subsidies</p>
-                    </div>
-                    <div id="resultsContent"></div>
-                </div>
-            </div>
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h1>🚀 Startup India Advisor</h1>
+            <p>Multi-Agent Industrial Park Recommendation</p>
         </div>
 
-        <!-- MAP -->
-        <div class="map-container">
-            <div id="map"></div>
+        <div class="sidebar-content">
+            <!-- WIZARD FORM -->
+            <form id="advisorForm">
+                <div class="step-indicator" id="stepIndicator">
+                    <div class="step-dot active" data-step="1">1</div>
+                    <div class="step-dot" data-step="2">2</div>
+                    <div class="step-dot" data-step="3">3</div>
+                </div>
 
-            <div class="map-legend">
-                <h4>State Rankings</h4>
-                <div class="legend-item">
-                    <div class="legend-dot" style="background:#137333"></div>
-                    <span>Tier A (Score 80+)</span>
+                <!-- Step 1: Core Business -->
+                <div class="wizard-step active" id="step1">
+                    <h2 style="margin-bottom: 1.5rem; font-size: 1.25rem;">Core Requirements</h2>
+                    
+                    <div class="form-group">
+                        <label>Business Sector</label>
+                        <select id="sector" required>
+                            <option value="">Select sector...</option>
+                            <option value="manufacturing">General Manufacturing</option>
+                            <option value="electronics">Electronics Hardware</option>
+                            <option value="automobile">Automobile & Auto Components</option>
+                            <option value="pharma">Pharmaceuticals</option>
+                            <option value="textile">Textiles & Apparel</option>
+                            <option value="food_processing">Food Processing</option>
+                            <option value="IT">IT & ITeS</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Investment Size (₹)</label>
+                        <input type="number" id="investment" placeholder="e.g., 50000000" required min="100000">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Land Required (Acres)</label>
+                        <input type="number" id="land_required" placeholder="e.g., 5" required min="0.1" step="0.1">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Preferred State (Optional)</label>
+                        <select id="state">
+                            <option value="">Any State</option>
+                            <option value="GUJARAT">Gujarat</option>
+                            <option value="MAHARASHTRA">Maharashtra</option>
+                            <option value="KARNATAKA">Karnataka</option>
+                            <option value="TAMIL NADU">Tamil Nadu</option>
+                            <option value="TELANGANA">Telangana</option>
+                            <option value="UTTAR PRADESH">Uttar Pradesh</option>
+                            <option value="WEST BENGAL">West Bengal</option>
+                            <option value="UTTARAKHAND">Uttarakhand</option>
+                        </select>
+                    </div>
+
+                    <div class="wizard-actions" style="justify-content: flex-end;">
+                        <button type="button" class="btn btn-primary" onclick="nextStep(2)">Next Step →</button>
+                    </div>
                 </div>
-                <div class="legend-item">
-                    <div class="legend-dot" style="background:#b06000"></div>
-                    <span>Tier B (Score 65-79)</span>
+
+                <!-- Step 2: Infrastructure Needs -->
+                <div class="wizard-step" id="step2">
+                    <h2 style="margin-bottom: 1.5rem; font-size: 1.25rem;">Infrastructure & Logistics</h2>
+                    
+                    <label class="toggle-group">
+                        <div>
+                            <div style="font-weight: 600;">Logistics Connectivity</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">Proximity to highways, railways, or ports</div>
+                        </div>
+                        <input type="checkbox" id="req_logistics">
+                    </label>
+
+                    <label class="toggle-group">
+                        <div>
+                            <div style="font-weight: 600;">Water Availability</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">Dedicated water supply crucial for operations</div>
+                        </div>
+                        <input type="checkbox" id="req_water">
+                    </label>
+
+                    <label class="toggle-group">
+                        <div>
+                            <div style="font-weight: 600;">Skilled Labor</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">Access to local skilled workforce</div>
+                        </div>
+                        <input type="checkbox" id="req_labor">
+                    </label>
+                    
+                    <label class="toggle-group">
+                        <div>
+                            <div style="font-weight: 600;">Plug & Play Facility</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">Ready-to-use sheds or infrastructure</div>
+                        </div>
+                        <input type="checkbox" id="req_plug_play">
+                    </label>
+
+                    <div class="wizard-actions">
+                        <button type="button" class="btn btn-secondary" onclick="nextStep(1)">← Back</button>
+                        <button type="button" class="btn btn-primary" onclick="nextStep(3)">Next Step →</button>
+                    </div>
                 </div>
-                <div class="legend-item">
-                    <div class="legend-dot" style="background:#c5221f"></div>
-                    <span>Tier C (Score <65)</span>
+
+                <!-- Step 3: Business Profile -->
+                <div class="wizard-step" id="step3">
+                    <h2 style="margin-bottom: 1.5rem; font-size: 1.25rem;">Business Profile</h2>
+                    
+                    <div class="form-group">
+                        <label>Expected Employment</label>
+                        <input type="number" id="employment" placeholder="Number of employees" min="1">
+                    </div>
+
+                    <label class="toggle-group">
+                        <div>
+                            <div style="font-weight: 600;">DPIIT-Recognized Startup</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">Registered with Startup India</div>
+                        </div>
+                        <input type="checkbox" id="is_startup">
+                    </label>
+
+                    <label class="toggle-group">
+                        <div>
+                            <div style="font-weight: 600;">MSME Registered</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">Possess Udyam Registration</div>
+                        </div>
+                        <input type="checkbox" id="is_msme">
+                    </label>
+
+                    <div class="wizard-actions">
+                        <button type="button" class="btn btn-secondary" onclick="nextStep(2)">← Back</button>
+                        <button type="submit" class="btn btn-primary" style="background: var(--accent);">🚀 Find Top Parks</button>
+                    </div>
                 </div>
+            </form>
+
+            <!-- PROGRESS TRACKER -->
+            <div id="progressContainer">
+                <div class="spinner"></div>
+                <h3 id="progressStepName" style="color: var(--primary); margin-bottom: 0.5rem;">Initializing...</h3>
+                <p id="progressMsg" style="font-size: 0.875rem; color: var(--text-muted);">Connecting to agents</p>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progressBar"></div>
+                </div>
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 1rem;">
+                    Our AI is searching 4,200+ parks, scraping live data, and calculating government subsidies...
+                </p>
             </div>
 
-            <div class="map-controls">
-                <button onclick="resetMap()">🌏 Reset View</button>
-                <button onclick="toggleSatellite()">🛰️ Satellite</button>
-                <button onclick="toggleTerrain()">⛰️ Terrain</button>
+            <!-- RESULTS LIST -->
+            <div id="resultsPanel">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h2 style="font-size: 1.25rem; font-weight: 700;">Top 10 Recommendations</h2>
+                    <button class="btn btn-secondary" style="padding: 0.5rem 1rem;" onclick="resetForm()">Start Over</button>
+                </div>
+                <div id="resultsList"></div>
             </div>
 
-            <button class="chat-toggle" onclick="toggleChat()">💬</button>
-
-            <div class="chat-panel" id="chatPanel">
-                <div class="chat-header">🤖 AI Assistant</div>
-                <div class="chat-messages" id="chatMessages">
-                    <div class="chat-message bot">Hello! I can answer questions about Indian states, industrial parks, government schemes, and subsidies. What would you like to know?</div>
-                </div>
-                <div class="chat-input-area">
-                    <input type="text" id="chatInput" placeholder="Ask about Gujarat power..." onkeypress="if(event.key==='Enter')sendChat()">
-                    <button onclick="sendChat()">➤</button>
-                </div>
-            </div>
         </div>
     </div>
 
-    <!-- COMPARISON MODAL -->
-    <div class="modal-overlay" id="compareModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>📊 State Comparison</h2>
-                <button onclick="closeCompare()">&times;</button>
-            </div>
-            <div class="modal-body" id="compareBody">
-                <canvas id="radarChart" style="max-height:300px"></canvas>
-                <div id="compareTable"></div>
-            </div>
-        </div>
+    <!-- MAP CONTAINER -->
+    <div class="map-container">
+        <div id="map"></div>
     </div>
 
     <script>
-        // ============================================================
-        // GOOGLE MAPS INITIALIZATION
-        // ============================================================
-        const map = new google.maps.Map(document.getElementById('map'), {
-            center: { lat: 22.5937, lng: 78.9629 },
-            zoom: 5,
-            mapTypeId: 'terrain',
-            mapTypeControl: false,
-            streetViewControl: false,
-            fullscreenControl: false
+        let map;
+        let markers = [];
+        let infoWindow;
+
+        // --- Initialization ---
+        function initMap() {
+            // Default center of India
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 20.5937, lng: 78.9629 },
+                zoom: 5,
+                styles: [
+                    { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
+                    { featureType: "transit", elementType: "labels", stylers: [{ visibility: "off" }] }
+                ]
+            });
+            infoWindow = new google.maps.InfoWindow();
+        }
+
+        window.onload = initMap;
+
+        // --- Wizard Navigation ---
+        function nextStep(stepNum) {
+            document.querySelectorAll('.wizard-step').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.step-dot').forEach(el => {
+                let s = parseInt(el.dataset.step);
+                if (s < stepNum) {
+                    el.classList.add('completed');
+                    el.classList.remove('active');
+                } else if (s === stepNum) {
+                    el.classList.add('active');
+                    el.classList.remove('completed');
+                } else {
+                    el.classList.remove('active', 'completed');
+                }
+            });
+            document.getElementById(`step${stepNum}`).classList.add('active');
+        }
+
+        function resetForm() {
+            document.getElementById('advisorForm').reset();
+            document.getElementById('advisorForm').style.display = 'block';
+            document.getElementById('resultsPanel').style.display = 'none';
+            document.getElementById('progressContainer').style.display = 'none';
+            document.getElementById('stepIndicator').style.display = 'flex';
+            nextStep(1);
+            clearMarkers();
+            map.setCenter({ lat: 20.5937, lng: 78.9629 });
+            map.setZoom(5);
+        }
+
+        // --- Pipeline Execution ---
+        document.getElementById('advisorForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // Gather Requirements
+            const reqs = {
+                sector: document.getElementById('sector').value,
+                investment_inr: parseFloat(document.getElementById('investment').value),
+                land_required_acres: parseFloat(document.getElementById('land_required').value),
+                preferred_state: document.getElementById('state').value,
+                logistics_required: document.getElementById('req_logistics').checked,
+                water_required: document.getElementById('req_water').checked,
+                labor_required: document.getElementById('req_labor').checked,
+                plug_and_play: document.getElementById('req_plug_play').checked,
+                employment: parseInt(document.getElementById('employment').value) || 0,
+                is_startup: document.getElementById('is_startup').checked,
+                is_msme: document.getElementById('is_msme').checked,
+                max_results: 15 // Limit for speed
+            };
+
+            // Switch UI
+            document.getElementById('advisorForm').style.display = 'none';
+            document.getElementById('stepIndicator').style.display = 'none';
+            document.getElementById('progressContainer').style.display = 'block';
+            
+            try {
+                // Step 2: Query DB
+                updateProgress("Querying Database", "Filtering 4,200+ parks...", 10);
+                const queryRes = await fetch('/api/find-parks', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(reqs)
+                });
+                
+                const queryData = await queryRes.json();
+                if (queryData.status !== 'success' || !queryData.parks || queryData.parks.length === 0) {
+                    throw new Error("No matching parks found for these requirements.");
+                }
+
+                // Steps 3-6: SSE Pipeline
+                const ssePayload = {
+                    parks: queryData.parks,
+                    requirements: reqs
+                };
+
+                const response = await fetch('/api/run-pipeline', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(ssePayload)
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const {value, done} = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = JSON.parse(line.substring(6));
+                            
+                            let stepName = "";
+                            if (data.step === 3) stepName = "Agent Scraping";
+                            if (data.step === 4) stepName = "Saving Data";
+                            if (data.step === 5) stepName = "AI Ranking & Research";
+                            if (data.step === 6) stepName = "Scheme Matching";
+                            if (data.step === 7) stepName = "Finalizing";
+
+                            updateProgress(stepName, data.msg, data.pct);
+
+                            if (data.step === 7 && data.results) {
+                                renderResults(data.results);
+                            }
+                        }
+                    }
+                }
+
+            } catch (err) {
+                alert("Error during analysis: " + err.message);
+                resetForm();
+            }
         });
 
-        // State coordinates
-        const stateCoords = {
-            'gujarat': { lat: 22.2587, lng: 71.1924 },
-            'karnataka': { lat: 15.3173, lng: 75.7139 },
-            'tamil_nadu': { lat: 11.1271, lng: 78.6569 },
-            'maharashtra': { lat: 19.7515, lng: 75.7139 },
-            'telangana': { lat: 18.1124, lng: 79.0193 },
-            'uttar_pradesh': { lat: 26.8467, lng: 80.9462 },
-            'rajasthan': { lat: 27.0238, lng: 74.2179 },
-            'andhra_pradesh': { lat: 15.9129, lng: 79.7400 }
-        };
+        function updateProgress(title, msg, pct) {
+            document.getElementById('progressStepName').innerText = title;
+            document.getElementById('progressMsg').innerText = msg;
+            document.getElementById('progressBar').style.width = pct + '%';
+        }
 
-        let markers = [];
-        let infoWindows = [];
-        let currentRankings = [];
-        let radarChartInstance = null;
+        // --- Render Results ---
+        function renderResults(parks) {
+            document.getElementById('progressContainer').style.display = 'none';
+            document.getElementById('resultsPanel').style.display = 'block';
+            
+            const list = document.getElementById('resultsList');
+            list.innerHTML = '';
+            clearMarkers();
+
+            const bounds = new google.maps.LatLngBounds();
+
+            parks.forEach((park, index) => {
+                // Determine Map Coordinates
+                const lat = park.lat || (20.5937 + (Math.random() - 0.5) * 10);
+                const lng = park.lng || (78.9629 + (Math.random() - 0.5) * 10);
+                const pos = { lat: parseFloat(lat), lng: parseFloat(lng) };
+                
+                if (park.lat && park.lng) bounds.extend(pos);
+
+                // Create Map Marker
+                const marker = new google.maps.Marker({
+                    position: pos,
+                    map: map,
+                    label: { text: `${index + 1}`, color: "white", fontWeight: "bold" },
+                    title: park.name,
+                    animation: google.maps.Animation.DROP
+                });
+
+                // Marker Click Event
+                marker.addListener('click', () => {
+                    const content = `
+                        <div class="map-info-window">
+                            <h4>${park.name}</h4>
+                            <p>Score: ${park.rank_score} | Land: ${park.available_area_acres} Acres</p>
+                            <p style="margin-bottom:0"><b>Net Inv:</b> ₹${park.schemes?.net_investment_cr || '?'} Cr</p>
+                        </div>
+                    `;
+                    infoWindow.setContent(content);
+                    infoWindow.open(map, marker);
+                    
+                    // Scroll sidebar to card
+                    const card = document.getElementById(`card-${index}`);
+                    if(card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                });
+
+                markers.push(marker);
+
+                // --- Build Card UI ---
+                const r = park.research || {};
+                const s = park.schemes || {};
+                
+                const hw = park.nearest_highway_km ? `${park.nearest_highway_km} km` : 'N/A';
+                const air = park.nearest_airport_km ? `${park.nearest_airport_km} km` : 'N/A';
+
+                const card = document.createElement('div');
+                card.className = 'result-card';
+                card.id = `card-${index}`;
+                card.onclick = () => {
+                    map.panTo(pos);
+                    map.setZoom(10);
+                    google.maps.event.trigger(marker, 'click');
+                };
+
+                card.innerHTML = `
+                    <div class="rank-badge">${index + 1}</div>
+                    <div class="result-header">
+                        <h3>${park.name}</h3>
+                        <p>${park.district}, ${park.state}</p>
+                    </div>
+                    
+                    <div class="score-pill">
+                        ★ ${park.rank_score}/100 Score
+                    </div>
+
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="info-label">Available Land</span>
+                            <span class="info-value">${park.available_area_acres} Acres</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Sector</span>
+                            <span class="info-value" style="text-transform: capitalize;">${park.sector || 'Mixed'}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Highway Access</span>
+                            <span class="info-value">${hw}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Airport</span>
+                            <span class="info-value">${air}</span>
+                        </div>
+                    </div>
+
+                    ${ s.total_subsidy_cr > 0 ? `
+                    <div class="subsidy-box">
+                        <div>
+                            <div class="label">Total Est. Subsidy</div>
+                            <div class="amount">₹${s.total_subsidy_cr} Cr</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div class="label">Net Investment</div>
+                            <div class="amount" style="font-size: 1.125rem;">₹${s.net_investment_cr} Cr</div>
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    <div class="ai-summary">
+                        <div class="ai-summary-title">
+                            ✨ AI Recommendation
+                        </div>
+                        ${r.summary_paragraph || 'Strong candidate matching your criteria.'}
+                    </div>
+                `;
+
+                list.appendChild(card);
+            });
+
+            if (!bounds.isEmpty()) {
+                map.fitBounds(bounds);
+                // Adjust zoom if too close
+                const listener = google.maps.event.addListener(map, "idle", function() { 
+                    if (map.getZoom() > 10) map.setZoom(10); 
+                    google.maps.event.removeListener(listener); 
+                });
+            }
+        }
 
         function clearMarkers() {
             markers.forEach(m => m.setMap(null));
             markers = [];
-            infoWindows.forEach(iw => iw.close());
-            infoWindows = [];
         }
-
-        function addStateMarker(state, score, tier, rankingData) {
-            const coords = stateCoords[state.toLowerCase().replace(' ', '_')];
-            if (!coords) return;
-
-            const colors = { 'A': '#137333', 'B': '#b06000', 'C': '#c5221f' };
-            const color = colors[tier] || '#666';
-            const scale = 12 + (score / 8);
-
-            const marker = new google.maps.Marker({
-                position: coords,
-                map: map,
-                title: `${state}: ${score}/100`,
-                icon: {
-                    path: google.maps.SymbolPath.CIRCLE,
-                    scale: scale,
-                    fillColor: color,
-                    fillOpacity: 0.75,
-                    strokeColor: '#fff',
-                    strokeWeight: 2
-                },
-                animation: google.maps.Animation.DROP
-            });
-
-            // Build info window content
-            const breakdown = rankingData.breakdown || {};
-            const content = `
-                <div style="padding:12px;min-width:220px;font-family:'Google Sans',sans-serif">
-                    <h3 style="margin:0 0 8px;color:${color};font-size:16px">${state}</h3>
-                    <div style="font-size:24px;font-weight:700;margin-bottom:8px">${score}<span style="font-size:14px;color:#666">/100</span></div>
-                    <div style="font-size:12px;color:#666;margin-bottom:12px">${rankingData.recommendation || ''}</div>
-                    <div style="border-top:1px solid #eee;padding-top:8px">
-                        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0">
-                            <span>⚡ Power</span><strong>${breakdown.power || 0}</strong>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0">
-                            <span>🚛 Logistics</span><strong>${breakdown.logistics || 0}</strong>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0">
-                            <span>👷 Labor</span><strong>${breakdown.labor || 0}</strong>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0">
-                            <span>💰 Cost</span><strong>${breakdown.cost_efficiency || 0}</strong>
-                        </div>
-                        <div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0">
-                            <span>🏛️ Schemes</span><strong>${breakdown.scheme_benefit || 0}</strong>
-                        </div>
-                    </div>
-                    <div style="margin-top:8px;font-size:11px;color:#1a73e8">
-                        ${rankingData.scheme_summary?.total_schemes || 0} applicable schemes
-                    </div>
-                </div>
-            `;
-
-            const infoWindow = new google.maps.InfoWindow({ content });
-
-            marker.addListener('click', () => {
-                infoWindows.forEach(iw => iw.close());
-                infoWindow.open(map, marker);
-            });
-
-            markers.push(marker);
-            infoWindows.push(infoWindow);
-        }
-
-        function addParkMarker(park) {
-            const marker = new google.maps.Marker({
-                position: { lat: park.lat, lng: park.lng },
-                map: map,
-                title: park.park_name,
-                icon: {
-                    path: google.maps.SymbolPath.RECTANGLE,
-                    scale: 8,
-                    fillColor: '#1a73e8',
-                    fillOpacity: 0.9,
-                    strokeColor: '#fff',
-                    strokeWeight: 2
-                }
-            });
-
-            const content = `
-                <div style="padding:12px;min-width:200px">
-                    <h4 style="margin:0 0 6px;color:#1a73e8">${park.park_name}</h4>
-                    <p style="margin:0 0 8px;font-size:12px;color:#666">${park.district}, ${park.state}</p>
-                    <div style="font-size:12px">
-                        <div>📐 ${park.available_acres} acres available</div>
-                        <div>⚡ ${park.power_capacity_mw} MW power</div>
-                        <div>💧 ${park.water_source}</div>
-                        <div>🏭 ${park.sector}</div>
-                    </div>
-                </div>
-            `;
-
-            const infoWindow = new google.maps.InfoWindow({ content });
-            marker.addListener('click', () => infoWindow.open(map, marker));
-
-            markers.push(marker);
-            infoWindows.push(infoWindow);
-        }
-
-        // ============================================================
-        // MAP CONTROLS
-        // ============================================================
-        function resetMap() {
-            map.setCenter({ lat: 22.5937, lng: 78.9629 });
-            map.setZoom(5);
-        }
-
-        function toggleSatellite() {
-            map.setMapTypeId('satellite');
-        }
-
-        function toggleTerrain() {
-            map.setMapTypeId('terrain');
-        }
-
-        // ============================================================
-        // FORM HANDLER
-        // ============================================================
-        document.getElementById('advisorForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const btn = document.getElementById('analyzeBtn');
-            const resultsPanel = document.getElementById('resultsPanel');
-            const loadingState = document.getElementById('loadingState');
-            const content = document.getElementById('resultsContent');
-            const compareBtn = document.getElementById('compareBtn');
-
-            btn.disabled = true;
-            btn.innerHTML = '⏳ Analyzing...';
-            resultsPanel.classList.add('active');
-            loadingState.style.display = 'block';
-            content.innerHTML = '';
-            clearMarkers();
-
-            const formData = {
-                sector: document.getElementById('sector').value,
-                investment: parseFloat(document.getElementById('investment').value),
-                employment: parseInt(document.getElementById('employment').value) || 0,
-                business_type: document.getElementById('business_type').value,
-                is_startup: document.getElementById('is_startup').checked,
-                is_msme: document.getElementById('is_msme').checked,
-                priority_power: parseInt(document.getElementById('priority_power').value),
-                priority_logistics: parseInt(document.getElementById('priority_logistics').value),
-                priority_labor: parseInt(document.getElementById('priority_labor').value),
-                priority_cost: parseInt(document.getElementById('priority_cost').value),
-                priority_schemes: parseInt(document.getElementById('priority_schemes').value)
-            };
-
-            try {
-                // FAST PATH: Direct state ranking (< 1 second)
-                const rankRes = await fetch('/api/rank-states', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(formData)
-                });
-                const rankData = await rankRes.json();
-
-                loadingState.style.display = 'none';
-
-                if (rankData.status === 'success') {
-                    currentRankings = rankData.rankings;
-
-                    let html = '<h3 style="margin-bottom:16px;font-size:16px">🏆 Top Recommended States</h3>';
-
-                    rankData.rankings.forEach((r, i) => {
-                        const tierClass = r.recommendation === 'Highly Recommended' ? 'score-high' : 
-                                         r.recommendation === 'Recommended' ? 'score-mid' : 'score-low';
-                        const tier = r.recommendation === 'Highly Recommended' ? 'A' : 
-                                    r.recommendation === 'Recommended' ? 'B' : 'C';
-
-                        html += `
-                            <div class="result-card">
-                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-                                    <h3>#${i+1} ${r.state}</h3>
-                                    <span class="score-badge ${tierClass}">${r.score}/100</span>
-                                </div>
-                                <div class="metric-row">
-                                    <span class="metric-label">⚡ Power Reliability</span>
-                                    <span class="metric-value">${r.breakdown.power}</span>
-                                </div>
-                                <div class="metric-row">
-                                    <span class="metric-label">🚛 Logistics</span>
-                                    <span class="metric-value">${r.breakdown.logistics}</span>
-                                </div>
-                                <div class="metric-row">
-                                    <span class="metric-label">👷 Labor Availability</span>
-                                    <span class="metric-value">${r.breakdown.labor}</span>
-                                </div>
-                                <div class="metric-row">
-                                    <span class="metric-label">💰 Cost Efficiency</span>
-                                    <span class="metric-value">${r.breakdown.cost_efficiency}</span>
-                                </div>
-                                <div class="metric-row">
-                                    <span class="metric-label">🏛️ Scheme Benefit</span>
-                                    <span class="metric-value">${r.breakdown.scheme_benefit}</span>
-                                </div>
-                                <div style="margin-top:8px;font-size:12px;color:#1a73e8">
-                                    📋 ${r.scheme_summary.total_schemes} applicable schemes 
-                                    (${r.scheme_summary.central_schemes} central + ${r.scheme_summary.state_schemes} state)
-                                </div>
-                            </div>
-                        `;
-
-                        addStateMarker(r.state, r.score, tier, r);
-                    });
-
-                    content.innerHTML = html;
-                    compareBtn.style.display = 'block';
-
-                    // Fit map to markers
-                    if (markers.length > 0) {
-                        const bounds = new google.maps.LatLngBounds();
-                        markers.forEach(m => bounds.extend(m.getPosition()));
-                        map.fitBounds(bounds);
-                    }
-
-                    // Fetch parks for top state
-                    const topState = rankData.rankings[0].state_key;
-                    const parksRes = await fetch('/api/parks', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ state: topState, sector: formData.sector })
-                    });
-                    const parksData = await parksRes.json();
-
-                    if (parksData.status === 'success' && parksData.parks.length > 0) {
-                        let parksHtml = `<h3 style="margin:20px 0 12px;font-size:16px">🏭 Top Industrial Parks in ${rankData.rankings[0].state}</h3>`;
-
-                        parksData.parks.forEach(park => {
-                            parksHtml += `
-                                <div class="park-detail">
-                                    <h4>${park.park_name}</h4>
-                                    <p style="font-size:12px;color:#666">${park.district} • ${park.sector}</p>
-                                    <div class="park-meta">
-                                        <div><span>Available:</span> <strong>${park.available_acres} acres</strong></div>
-                                        <div><span>Power:</span> <strong>${park.power_capacity_mw} MW</strong></div>
-                                        <div><span>Water:</span> <strong>${park.water_source}</strong></div>
-                                        <div><span>Highway:</span> <strong>${park.nearest_highway_km} km</strong></div>
-                                        <div><span>Railway:</span> <strong>${park.nearest_railway_km} km</strong></div>
-                                        <div><span>Airport:</span> <strong>${park.nearest_airport_km} km</strong></div>
-                                    </div>
-                                    ${park.notable_tenants ? `<div style="margin-top:8px;font-size:11px;color:#666">🏢 Tenants: ${park.notable_tenants.join(', ')}</div>` : ''}
-                                </div>
-                            `;
-                            addParkMarker(park);
-                        });
-
-                        content.innerHTML += parksHtml;
-                    }
-
-                    // Fetch schemes for top state
-                    const schemesRes = await fetch('/api/schemes', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            ...formData,
-                            state: topState
-                        })
-                    });
-                    const schemesData = await schemesRes.json();
-
-                    if (schemesData.status === 'success') {
-                        let schemesHtml = `<h3 style="margin:20px 0 12px;font-size:16px">🏛️ Applicable Government Schemes</h3>`;
-                        let totalSubsidy = 0;
-
-                        // Central schemes
-                        if (schemesData.schemes.central.length > 0) {
-                            schemesHtml += '<div style="font-size:12px;font-weight:600;color:#666;margin-bottom:8px">CENTRAL SCHEMES</div>';
-                            for (const scheme of schemesData.schemes.central.slice(0, 4)) {
-                                const subsidyRes = await fetch('/api/subsidy', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        scheme_name: scheme.scheme,
-                                        investment: formData.investment,
-                                        revenue: formData.investment * 0.3
-                                    })
-                                });
-                                const subsidyData = await subsidyRes.json();
-
-                                if (subsidyData.status === 'success') {
-                                    totalSubsidy += subsidyData.estimated_value_inr;
-                                }
-
-                                schemesHtml += `
-                                    <div class="scheme-item">
-                                        <strong>${scheme.scheme}</strong>
-                                        <div class="benefit">${scheme.benefit}</div>
-                                        <div class="timeline">Match: ${scheme.match_score}% • ${subsidyData.status === 'success' ? `Est. Value: ₹${(subsidyData.estimated_value_inr/10000000).toFixed(2)} Cr` : ''}</div>
-                                    </div>
-                                `;
-                            }
-                        }
-
-                        // State schemes
-                        if (schemesData.schemes.state.length > 0) {
-                            schemesHtml += '<div style="font-size:12px;font-weight:600;color:#666;margin:12px 0 8px">STATE SCHEMES</div>';
-                            for (const scheme of schemesData.schemes.state.slice(0, 3)) {
-                                schemesHtml += `
-                                    <div class="scheme-item" style="border-left-color:#b06000">
-                                        <strong>${scheme.scheme}</strong>
-                                        <div class="benefit">${scheme.benefit}</div>
-                                    </div>
-                                `;
-                            }
-                        }
-
-                        // Total subsidy box
-                        schemesHtml += `
-                            <div class="total-subsidy-box">
-                                <div class="label">Total Estimated Subsidy Value</div>
-                                <div class="value">₹${(totalSubsidy/10000000).toFixed(2)} Cr</div>
-                                <div style="font-size:12px;opacity:0.8;margin-top:4px">Across ${schemesData.total_schemes} applicable schemes</div>
-                            </div>
-                        `;
-
-                        content.innerHTML += schemesHtml;
-                    }
-                }
-
-                // SLOW PATH: Full AI analysis (background, appends when ready)
-                try {
-                    const analyzeRes = await fetch('/api/analyze', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(formData)
-                    });
-                    const analyzeData = await analyzeRes.json();
-
-                    if (analyzeData.status === 'success') {
-                        content.innerHTML += `
-                            <div class="ai-insight">
-                                <h4>🤖 AI Advisor Deep Analysis</h4>
-                                <pre>${analyzeData.analysis}</pre>
-                            </div>
-                        `;
-                    }
-                } catch (err) {
-                    console.log('Full analysis not available:', err);
-                }
-
-            } catch (err) {
-                loadingState.style.display = 'none';
-                content.innerHTML = `
-                    <div class="result-card" style="background:#fce8e8;border-color:#c5221f">
-                        <h3 style="color:#c5221f">❌ Error</h3>
-                        <p style="font-size:13px">${err.message}</p>
-                        <p style="font-size:12px;color:#666;margin-top:8px">Please check your API keys in .env file</p>
-                    </div>
-                `;
-            }
-
-            btn.disabled = false;
-            btn.innerHTML = '🔍 Analyze Best Locations';
-        });
-
-        // ============================================================
-        // COMPARISON MODAL
-        // ============================================================
-        document.getElementById('compareBtn').addEventListener('click', () => {
-            if (currentRankings.length < 2) return;
-
-            const modal = document.getElementById('compareModal');
-            const body = document.getElementById('compareBody');
-
-            // Build comparison table
-            let tableHtml = `
-                <table class="comparison-table" style="margin-top:20px">
-                    <thead>
-                        <tr>
-                            <th>Metric</th>
-                            ${currentRankings.slice(0, 4).map(r => `<th>${r.state}</th>`).join('')}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>Overall Score</strong></td>
-                            ${currentRankings.slice(0, 4).map(r => `<td><strong>${r.score}</strong></td>`).join('')}
-                        </tr>
-                        <tr>
-                            <td>⚡ Power</td>
-                            ${currentRankings.slice(0, 4).map(r => `<td>${r.breakdown.power}</td>`).join('')}
-                        </tr>
-                        <tr>
-                            <td>🚛 Logistics</td>
-                            ${currentRankings.slice(0, 4).map(r => `<td>${r.breakdown.logistics}</td>`).join('')}
-                        </tr>
-                        <tr>
-                            <td>👷 Labor</td>
-                            ${currentRankings.slice(0, 4).map(r => `<td>${r.breakdown.labor}</td>`).join('')}
-                        </tr>
-                        <tr>
-                            <td>💰 Cost Efficiency</td>
-                            ${currentRankings.slice(0, 4).map(r => `<td>${r.breakdown.cost_efficiency}</td>`).join('')}
-                        </tr>
-                        <tr>
-                            <td>🏛️ Scheme Benefit</td>
-                            ${currentRankings.slice(0, 4).map(r => `<td>${r.breakdown.scheme_benefit}</td>`).join('')}
-                        </tr>
-                        <tr>
-                            <td>📋 Total Schemes</td>
-                            ${currentRankings.slice(0, 4).map(r => `<td>${r.scheme_summary.total_schemes}</td>`).join('')}
-                        </tr>
-                    </tbody>
-                </table>
-            `;
-
-            document.getElementById('compareTable').innerHTML = tableHtml;
-
-            // Radar chart
-            const ctx = document.getElementById('radarChart').getContext('2d');
-
-            if (radarChartInstance) {
-                radarChartInstance.destroy();
-            }
-
-            const labels = ['Power', 'Logistics', 'Labor', 'Cost', 'Schemes'];
-            const datasets = currentRankings.slice(0, 3).map((r, i) => ({
-                label: r.state,
-                data: [
-                    r.breakdown.power,
-                    r.breakdown.logistics,
-                    r.breakdown.labor,
-                    r.breakdown.cost_efficiency,
-                    r.breakdown.scheme_benefit
-                ],
-                borderColor: ['#1a73e8', '#137333', '#b06000'][i],
-                backgroundColor: ['rgba(26,115,232,0.1)', 'rgba(19,115,51,0.1)', 'rgba(176,96,0,0.1)'][i],
-                borderWidth: 2
-            }));
-
-            radarChartInstance = new Chart(ctx, {
-                type: 'radar',
-                data: { labels, datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        r: {
-                            beginAtZero: true,
-                            max: 30
-                        }
-                    }
-                }
-            });
-
-            modal.classList.add('active');
-        });
-
-        function closeCompare() {
-            document.getElementById('compareModal').classList.remove('active');
-        }
-
-        // ============================================================
-        // CHAT
-        // ============================================================
-        function toggleChat() {
-            document.getElementById('chatPanel').classList.toggle('active');
-        }
-
-        async function sendChat() {
-            const input = document.getElementById('chatInput');
-            const messages = document.getElementById('chatMessages');
-            const message = input.value.trim();
-
-            if (!message) return;
-
-            // Add user message
-            messages.innerHTML += `<div class="chat-message user">${message}</div>`;
-            input.value = '';
-            messages.scrollTop = messages.scrollHeight;
-
-            // Show typing indicator
-            const typingId = 'typing-' + Date.now();
-            messages.innerHTML += `<div class="chat-message bot" id="${typingId}">⏳ Thinking...</div>`;
-            messages.scrollTop = messages.scrollHeight;
-
-            try {
-                const res = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message })
-                });
-                const data = await res.json();
-
-                document.getElementById(typingId).remove();
-
-                if (data.status === 'success') {
-                    messages.innerHTML += `<div class="chat-message bot">${data.response}</div>`;
-                } else {
-                    messages.innerHTML += `<div class="chat-message bot" style="color:#c5221f">Error: ${data.message}</div>`;
-                }
-            } catch (err) {
-                document.getElementById(typingId).remove();
-                messages.innerHTML += `<div class="chat-message bot" style="color:#c5221f">Sorry, I couldn't process that. Please try again.</div>`;
-            }
-
-            messages.scrollTop = messages.scrollHeight;
-        }
-
-        // Close modal on overlay click
-        document.getElementById('compareModal').addEventListener('click', (e) => {
-            if (e.target === document.getElementById('compareModal')) {
-                closeCompare();
-            }
-        });
     </script>
 </body>
 </html>
