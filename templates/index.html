@@ -729,10 +729,46 @@
                         </div>
                     </div>
 
+                    ${ (s.central_schemes && s.central_schemes.length > 0) || (s.state_schemes && s.state_schemes.length > 0) ? `
+                    <div style="margin-top: 1rem; font-size: 0.8125rem; padding: 1rem; background: linear-gradient(135deg, #f0fdf4, #f8fafc); border-radius: var(--radius-md); border: 1px solid #bbf7d0;">
+                        <strong style="color: #166534; display: block; margin-bottom: 0.75rem; font-size: 0.875rem;">🏛️ Government Schemes & Subsidies</strong>
+                        
+                        ${(s.central_schemes || []).map(sch => `
+                        <div style="padding: 0.5rem 0; border-bottom: 1px solid #e5e7eb;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                <div style="flex: 1;">
+                                    <span style="background: #dbeafe; color: #1e40af; padding: 0.125rem 0.5rem; border-radius: 4px; font-size: 0.6875rem; font-weight: 600;">CENTRAL</span>
+                                    <div style="font-weight: 600; color: var(--text-main); margin-top: 0.25rem;">${sch.name}</div>
+                                    <div style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.125rem;">${sch.benefit || ''}</div>
+                                    ${sch.url ? `<a href="${sch.url}" target="_blank" rel="noopener" style="color: var(--primary); font-size: 0.75rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem; margin-top: 0.25rem;">🔗 Apply / Details →</a>` : ''}
+                                </div>
+                                ${sch.estimated_value_cr ? `<div style="text-align: right; min-width: 70px;"><div style="color: var(--accent); font-weight: 700; font-size: 0.875rem;">₹${sch.estimated_value_cr} Cr</div><div style="color: var(--text-muted); font-size: 0.625rem;">est. subsidy</div></div>` : ''}
+                            </div>
+                        </div>
+                        `).join('')}
+
+                        ${(s.state_schemes || []).map(sch => `
+                        <div style="padding: 0.5rem 0; border-bottom: 1px solid #e5e7eb;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                <div style="flex: 1;">
+                                    <span style="background: #fef3c7; color: #92400e; padding: 0.125rem 0.5rem; border-radius: 4px; font-size: 0.6875rem; font-weight: 600;">STATE</span>
+                                    <div style="font-weight: 600; color: var(--text-main); margin-top: 0.25rem;">${sch.name}</div>
+                                    <div style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.125rem;">${sch.benefit || ''}</div>
+                                    ${sch.url ? `<a href="${sch.url}" target="_blank" rel="noopener" style="color: var(--primary); font-size: 0.75rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem; margin-top: 0.25rem;">🔗 Apply / Details →</a>` : ''}
+                                </div>
+                                ${sch.estimated_value_cr ? `<div style="text-align: right; min-width: 70px;"><div style="color: var(--accent); font-weight: 700; font-size: 0.875rem;">₹${sch.estimated_value_cr} Cr</div><div style="color: var(--text-muted); font-size: 0.625rem;">est. subsidy</div></div>` : ''}
+                            </div>
+                        </div>
+                        `).join('')}
+
+                        ${s.key_insight ? `<div style="margin-top: 0.5rem; font-size: 0.75rem; color: #166534; font-style: italic;">💡 ${s.key_insight}</div>` : ''}
+                    </div>
+                    ` : ''}
+
                     ${ s.total_subsidy_cr > 0 ? `
                     <div class="subsidy-box">
                         <div>
-                            <div class="label">Total Est. Subsidy</div>
+                            <div class="label">Total Est. Subsidy (${s.subsidy_pct || '?'}%)</div>
                             <div class="amount">₹${s.total_subsidy_cr} Cr</div>
                         </div>
                         <div style="text-align: right;">

@@ -215,34 +215,32 @@ def run_pipeline():
             yield _sse({"step": 6, "msg": f"Fetching schemes for {name}", "pct": pct})
 
             try:
-                from agents.scheme_agent import (
-                    _match_central_schemes,
-                    _match_state_schemes,
-                    _gemini_scheme_research,
-                )
+                from agents.scheme_agent import _gemini_fetch_schemes
                 sector     = requirements.get('sector', '')
                 investment = float(requirements.get('investment_inr') or 0)
                 is_msme    = bool(requirements.get('is_msme', False))
                 is_startup = bool(requirements.get('is_startup', False))
                 state      = park.get('state', '')
+                park_inc   = park.get('incentives') or []
 
-                central = _match_central_schemes(sector, investment, is_msme, is_startup)
-                state_s = _match_state_schemes(state, sector)
-                park_inc= park.get('incentives') or []
-
-                gemini_schemes = _gemini_scheme_research(
-                    park.get('name', ''), state, sector, investment,
-                    central + state_s, park_inc
+                gemini_result = _gemini_fetch_schemes(
+                    park_name      = park.get('name', ''),
+                    state          = state,
+                    sector         = sector,
+                    investment_inr = investment,
+                    is_msme        = is_msme,
+                    is_startup     = is_startup,
+                    park_incentives= park_inc
                 )
                 park["schemes"] = {
-                    "central_schemes":   central,
-                    "state_schemes":     state_s,
-                    "park_incentives":   park_inc,
-                    "gemini_analysis":   gemini_schemes,
-                    "total_subsidy_cr":  gemini_schemes.get("total_subsidy_estimate_cr", 0),
-                    "net_investment_cr": gemini_schemes.get("net_investment_cr", investment / 1e7),
-                    "subsidy_pct":       gemini_schemes.get("subsidy_percentage", 0),
-                    "key_insight":       gemini_schemes.get("key_insight", ""),
+                    "central_schemes":  gemini_result.get("central_schemes", []),
+                    "state_schemes":    gemini_result.get("state_schemes", []),
+                    "park_incentives":  park_inc,
+                    "gemini_analysis":  gemini_result,
+                    "total_subsidy_cr": gemini_result.get("total_subsidy_estimate_cr", 0),
+                    "net_investment_cr": gemini_result.get("net_investment_cr", investment / 1e7),
+                    "subsidy_pct":      gemini_result.get("subsidy_percentage", 0),
+                    "key_insight":      gemini_result.get("key_insight", ""),
                 }
             except Exception as e:
                 park["schemes"] = {"_error": str(e)}

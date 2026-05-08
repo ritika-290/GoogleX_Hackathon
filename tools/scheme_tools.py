@@ -12,8 +12,12 @@ from typing import Dict, List
 
 _DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
 
-with open(os.path.join(_DATA_DIR, 'schemes.json')) as f:
-    SCHEMES = json.load(f)
+SCHEMES = {}
+try:
+    with open(os.path.join(_DATA_DIR, 'schemes.json')) as f:
+        SCHEMES = json.load(f)
+except FileNotFoundError:
+    pass
 
 
 def match_government_schemes(
